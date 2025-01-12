@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test de Rol RPG</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .question {
+            display: none;
+            margin-bottom: 20px;
+        }
+        .question.active {
+            display: block;
+        }
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            margin: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .progress {
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #4CAF50;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        #results {
+            display: none;
+        }
+        .result-card {
+            background-color: #f8f9fa;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .share-button {
+            background-color: #25D366;
+        }
+        .role-description {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="intro">
+            <h1>Test de Rol RPG</h1>
+            <p>Descubre qué rol de RPG se ajusta mejor a tu personalidad a través de este test completo de 30 preguntas.</p>
+            <button onclick="startTest()">Comenzar Test</button>
+        </div>
+
+        <div id="test" style="display: none;">
+            <div class="progress">
+                <div class="progress-bar" style="width: 0%"></div>
+            </div>
+            <div id="question-container"></div>
+            <button onclick="nextQuestion()" id="next-button" style="display: none;">Siguiente</button>
+        </div>
+
+        <div id="results">
+            <h2>Tus Resultados</h2>
+            <div class="result-card">
+                <h3>Tu rol principal es: <span id="primary-role"></span></h3>
+                <div class="role-description" id="role-description"></div>
+                <p>Compatibilidad con otros roles:</p>
+                <canvas id="results-chart"></canvas>
+            </div>
+            <button class="share-button" onclick="shareResults()">Compartir en WhatsApp</button>
+            <button onclick="restartTest()">Realizar test de nuevo</button>
+        </div>
+    </div>
+
+    <script>
+        const questions = [
+            {
+                question: "¿Cómo te sientes más cómodo al enfrentar nuevas situaciones?",
+                options: [
+                    { text: "Me lanzo a la acción sin dudar", scores: { Guerrero: 3, Berserker: 2 } },
+                    { text: "Analizo cuidadosamente antes de actuar", scores: { Mago: 3, Estratega: 2 } },
+                    { text: "Busco el consejo de otros", scores: { Sanador: 2, Bardo: 2 } },
+                    { text: "Confío en mi intuición", scores: { Druida: 2, Místico: 2 } }
+                ]
+            },
+            {
+                question: "¿Qué tipo de desafío te motiva más?",
+                options: [
+                    { text: "Físico", scores: { Guerrero: 3, Berserker: 2 } },
+                    { text: "Intelectual", scores: { Mago: 3, Estratega: 2 } },
+                    { text: "Social", scores: { Bardo: 3, Diplomático: 2 } },
+                    { text: "Espiritual", scores: { Místico: 3, Sanador: 2 } }
+                ]
+            },
+            {
+                question: "¿Cómo prefieres pasar tu tiempo libre?",
+                options: [
+                    { text: "Entrenando", scores: { Guerrero: 3, Monje: 2 } },
+                    { text: "Estudiando", scores: { Mago: 3, Sabio: 2 } },
+                    { text: "Socializando", scores: { Bardo: 3, Noble: 2 } },
+                    { text: "En la naturaleza", scores: { Druida: 3, Ranger: 2 } }
+                ]
+            }
+        ];
+
+        const roleDescriptions = {
+            Guerrero: "Eres un luchador nato, destacas por tu fuerza y valentía. Tu determinación te hace ideal para enfrentar desafíos directos.",
+            Mago: "Tu intelecto y sed de conocimiento te definen. Buscas entender los misterios del mundo y dominar poderes arcanos.",
+            Sanador: "Tu empatía y deseo de ayudar son tus mayores fortalezas. Encuentras satisfacción en cuidar de otros.",
+            Bardo: "Tienes un don natural para la comunicación y las artes. Tu carisma inspira a otros.",
+            Druida: "Tu conexión con la naturaleza es profunda. Valoras el equilibrio y la armonía con el entorno.",
+            Pícaro: "Tu astucia e ingenio son tus mejores herramientas. Eres adaptable y recursivo.",
+            Paladín: "Tus fuertes principios y sentido de justicia te guían. Proteges a los débiles y luchas por causas nobles.",
+            Ranger: "Eres un explorador nato. Tu independencia y habilidades de supervivencia te distinguen."
+        };
+
+        let currentQuestion = 0;
+        let scores = {};
+
+        function startTest() {
+            document.getElementById('intro').style.display = 'none';
+            document.getElementById('test').style.display = 'block';
+            showQuestion();
+        }
+
+        function showQuestion() {
+            const questionContainer = document.getElementById('question-container');
+            const question = questions[currentQuestion];
+            
+            let html = `
+                <div class="question active">
+                    <h3>${question.question}</h3>
+                    <div class="options">
+            `;
+            
+            question.options.forEach((option, index) => {
+                html += `
+                    <button onclick="selectOption(${index})">${option.text}</button>
+                `;
+            });
+            
+            html += `</div></div>`;
+            questionContainer.innerHTML = html;
+            
+            updateProgressBar();
+        }
+
+        function selectOption(optionIndex) {
+            const option = questions[currentQuestion].options[optionIndex];
+            
+            // Actualizar puntuaciones
+            for (const [role, score] of Object.entries(option.scores)) {
+                scores[role] = (scores[role] || 0) + score;
+            }
+            
+            document.getElementById('next-button').style.display = 'block';
+            
+            // Deshabilitar todos los botones de opciones
+            const buttons = document.querySelectorAll('.options button');
+            buttons.forEach(button => {
+                button.style.opacity = '0.5';
+                button.disabled = true;
+            });
+            
+            // Resaltar la opción seleccionada
+            buttons[optionIndex].style.opacity = '1';
+            buttons[optionIndex].style.backgroundColor = '#45a049';
+        }
+
+        function nextQuestion() {
+            currentQuestion++;
+            document.getElementById('next-button').style.display = 'none';
+            
+            if (currentQuestion < questions.length) {
+                showQuestion();
+            } else {
+                showResults();
+            }
+        }
+
+        function updateProgressBar() {
+            const progress = ((currentQuestion + 1) / questions.length) * 100;
+            document.querySelector('.progress-bar').style.width = `${progress}%`;
+        }
+
+        function showResults() {
+            document.getElementById('test').style.display = 'none';
+            document.getElementById('results').style.display = 'block';
+            
+            // Encontrar el rol principal
+            const primaryRole = Object.entries(scores).reduce((a, b) => b[1] > a[1] ? b : a)[0];
+            
+            document.getElementById('primary-role').textContent = primaryRole;
+            document.getElementById('role-description').textContent = roleDescriptions[primaryRole];
+            
+            // Crear gráfico de compatibilidad
+            const ctx = document.getElementById('results-chart').getContext('2d');
+            new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: Object.keys(scores),
+                    datasets: [{
+                        label: 'Compatibilidad',
+                        data: Object.values(scores),
+                        backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                        borderColor: '#4CAF50',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            min: 0,
+                            max: Math.max(...Object.values(scores)) + 2
+                        }
+                    }
+                }
+            });
+        }
+
+        function shareResults() {
+            const primaryRole = document.getElementById('primary-role').textContent;
+            const description = document.getElementById('role-description').textContent;
+            const text = `¡Descubrí mi rol RPG!\nSoy un ${primaryRole}\n${description}\n\n¡Descubre tu rol en: [URL de tu sitio]`;
+            
+            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
+        }
+
+        function restartTest() {
+            currentQuestion = 0;
+            scores = {};
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('intro').style.display = 'block';
+        }
+    </script>
+</body>
+  </html>
